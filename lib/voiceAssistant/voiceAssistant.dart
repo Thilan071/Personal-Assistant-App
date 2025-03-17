@@ -1,4 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+// Your API key (keep it secure in production)
+const String chatApiKey =
+    "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";
+
+// Replace the URL below with your actual endpoint. For a physical device,
+// use your host machine's IP (e.g., http://192.168.24.217:5000/chat).
+final Uri url = Uri.parse("http://192.168.24.217:5000/chat");
 
 class VoiceAssistant extends StatefulWidget {
   const VoiceAssistant({Key? key}) : super(key: key);
@@ -8,13 +18,82 @@ class VoiceAssistant extends StatefulWidget {
 }
 
 class _VoiceAssistantState extends State<VoiceAssistant> {
+  final TextEditingController _messageController = TextEditingController();
+  final List<String> _messages = []; // List to hold messages
+  final ScrollController _scrollController = ScrollController();
+
+  // Function to send the message to your chat API
+  Future<void> sendMessage(String message) async {
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "Authorization": "Bearer $chatApiKey",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode({"message": message}),
+      );
+
+      debugPrint("API Response: ${response.body}");
+
+      if (response.statusCode == 200) {
+        // Assuming the API returns a JSON object with a "reply" field.
+        final reply = jsonDecode(response.body)["reply"];
+        setState(() {
+          _messages.add("Assistant: $reply");
+        });
+      } else {
+        setState(() {
+          _messages.add("Error: ${response.statusCode}");
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _messages.add("Error: $e");
+      });
+    } finally {
+      _scrollToBottom();
+    }
+  }
+
+  void _handleSend() {
+    final message = _messageController.text.trim();
+    if (message.isEmpty) return;
+    setState(() {
+      _messages.add("You: $message");
+    });
+    _messageController.clear();
+    _scrollToBottom();
+    sendMessage(message);
+  }
+
+  void _scrollToBottom() {
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // App bar and SafeArea
       body: SafeArea(
         child: Column(
           children: [
-            // App bar
+            // Custom app bar
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               height: 56,
@@ -32,7 +111,9 @@ class _VoiceAssistantState extends State<VoiceAssistant> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back, color: Colors.black),
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -51,61 +132,26 @@ class _VoiceAssistantState extends State<VoiceAssistant> {
                 ],
               ),
             ),
-
-            // Chat area
+            // Chat messages list
             Expanded(
               child: Container(
                 color: Colors.grey[100],
-                child: ListView(
+                child: ListView.builder(
+                  controller: _scrollController,
                   padding: const EdgeInsets.all(16),
-                  children: [
-                    // Assistant message
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Text(
-                        "Hello! I'm your AI assistant. How can I help you today?",
-                        style: TextStyle(fontSize: 16),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Time stamp
-                    const Padding(
-                      padding: EdgeInsets.only(top: 4, bottom: 24),
+                  itemCount: _messages.length,
+                  itemBuilder: (context, index) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
                       child: Text(
-                        '05:42 PM',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                        _messages[index],
+                        style: const TextStyle(fontSize: 16),
                       ),
-                    ),
-
-                    // Suggestions section
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        'Suggestions:',
-                        style: TextStyle(color: Colors.grey, fontSize: 16),
-                      ),
-                    ),
-
-                    // Suggestion chips
-                    _buildSuggestionChip("What's on my schedule today?"),
-                    const SizedBox(height: 8),
-                    _buildSuggestionChip("Set a reminder for 5pm"),
-                    const SizedBox(height: 8),
-                    _buildSuggestionChip("Summarize my unread emails"),
-                    const SizedBox(height: 8),
-                    _buildSuggestionChip(
-                      "Create a task: Submit project report",
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
             ),
-
             // Message input area
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -123,7 +169,9 @@ class _VoiceAssistantState extends State<VoiceAssistant> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.mic, color: Colors.grey),
-                    onPressed: () {},
+                    onPressed: () {
+                      // Add voice input functionality if needed.
+                    },
                   ),
                   Expanded(
                     child: Container(
@@ -132,8 +180,9 @@ class _VoiceAssistantState extends State<VoiceAssistant> {
                         color: Colors.grey[200],
                         borderRadius: BorderRadius.circular(24),
                       ),
-                      child: const TextField(
-                        decoration: InputDecoration(
+                      child: TextField(
+                        controller: _messageController,
+                        decoration: const InputDecoration(
                           hintText: 'Message AI Assistant...',
                           hintStyle: TextStyle(color: Colors.grey),
                           border: InputBorder.none,
@@ -143,7 +192,7 @@ class _VoiceAssistantState extends State<VoiceAssistant> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.send, color: Colors.grey),
-                    onPressed: () {},
+                    onPressed: _handleSend,
                   ),
                 ],
               ),
@@ -151,17 +200,6 @@ class _VoiceAssistantState extends State<VoiceAssistant> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildSuggestionChip(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.grey[200],
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Text(text, style: const TextStyle(fontSize: 14)),
     );
   }
 }
