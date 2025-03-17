@@ -2,12 +2,31 @@
 // import 'package:flutter/material.dart';
 // import 'package:http/http.dart' as http;
 
-// // Your API key (keep it secure in production)
-// const String chatApiKey = "AIzaSyBKHPQDjcLg5LTanfIPQrLVJIymEKybD8M";
+// // Your Gemini API key (keep it secure in production)
+// const String geminiApiKey = "AIzaSyBKHPQDjcLg5LTanfIPQrLVJIymEKybD8M";
 
-// // Replace the URL below with your actual endpoint. For a physical device,
-// // use your host machine's IP (e.g., http://192.168.24.217:5000/chat).
-// final Uri url = Uri.parse("http://192.168.24.217:5000/chat");
+// // Gemini API endpoint with the API key appended as a query parameter.
+// final Uri geminiUrl = Uri.parse(
+//   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$geminiApiKey",
+// );
+
+// void main() {
+//   runApp(const MyApp());
+// }
+
+// class MyApp extends StatelessWidget {
+//   const MyApp({Key? key}) : super(key: key);
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return MaterialApp(
+//       title: 'Voice Assistant',
+//       debugShowCheckedModeBanner: false,
+//       theme: ThemeData(primarySwatch: Colors.blue),
+//       home: const VoiceAssistant(),
+//     );
+//   }
+// }
 
 // class VoiceAssistant extends StatefulWidget {
 //   const VoiceAssistant({Key? key}) : super(key: key);
@@ -18,26 +37,45 @@
 
 // class _VoiceAssistantState extends State<VoiceAssistant> {
 //   final TextEditingController _messageController = TextEditingController();
-//   final List<String> _messages = []; // List to hold messages
+//   final List<String> _messages =
+//       []; // List to hold messages with prefixes "You:" or "Assistant:"
 //   final ScrollController _scrollController = ScrollController();
 
-//   // Function to send the message to your chat API
+//   // Function to send the message directly to the Gemini API
 //   Future<void> sendMessage(String message) async {
 //     try {
+//       // Construct the request body as per the Gemini API requirements.
+//       final Map<String, dynamic> requestBody = {
+//         "contents": [
+//           {
+//             "parts": [
+//               {"text": message},
+//             ],
+//           },
+//         ],
+//       };
+
 //       final response = await http.post(
-//         url,
-//         headers: {
-//           "Authorization": "Bearer $chatApiKey",
-//           "Content-Type": "application/json",
-//         },
-//         body: jsonEncode({"message": message}),
+//         geminiUrl,
+//         headers: {"Content-Type": "application/json"},
+//         body: jsonEncode(requestBody),
 //       );
 
-//       debugPrint("API Response: ${response.body}");
+//       debugPrint("Gemini API Response: ${response.body}");
 
 //       if (response.statusCode == 200) {
-//         // Assuming the API returns a JSON object with a "reply" field.
-//         final reply = jsonDecode(response.body)["reply"];
+//         final data = jsonDecode(response.body);
+//         // Extract reply text from the nested "content" field.
+//         String reply = "";
+//         if (data['candidates'] != null &&
+//             data['candidates'] is List &&
+//             data['candidates'].isNotEmpty) {
+//           reply =
+//               data['candidates'][0]['content']['parts'][0]['text'] ??
+//               "No reply text found";
+//         } else {
+//           reply = "No candidates returned";
+//         }
 //         setState(() {
 //           _messages.add("Assistant: $reply");
 //         });
@@ -83,6 +121,50 @@
 //     _messageController.dispose();
 //     _scrollController.dispose();
 //     super.dispose();
+//   }
+
+//   // Build a chat bubble based on the message type.
+//   Widget _buildChatBubble(String message) {
+//     // Determine if the message is from the user.
+//     bool isUserMessage = message.startsWith("You:");
+//     // Remove the prefix ("You:" or "Assistant:") for display.
+//     String displayText = message.replaceFirst(
+//       RegExp(r'^(You:|Assistant:) '),
+//       '',
+//     );
+
+//     return Align(
+//       alignment: isUserMessage ? Alignment.centerRight : Alignment.centerLeft,
+//       child: Container(
+//         margin: const EdgeInsets.symmetric(vertical: 4),
+//         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+//         constraints: BoxConstraints(
+//           maxWidth: MediaQuery.of(context).size.width * 0.75,
+//         ),
+//         decoration: BoxDecoration(
+//           color: isUserMessage ? Colors.blue : Colors.grey.shade300,
+//           borderRadius: BorderRadius.only(
+//             topLeft: const Radius.circular(16),
+//             topRight: const Radius.circular(16),
+//             bottomLeft:
+//                 isUserMessage
+//                     ? const Radius.circular(16)
+//                     : const Radius.circular(0),
+//             bottomRight:
+//                 isUserMessage
+//                     ? const Radius.circular(0)
+//                     : const Radius.circular(16),
+//           ),
+//         ),
+//         child: Text(
+//           displayText,
+//           style: TextStyle(
+//             color: isUserMessage ? Colors.white : Colors.black87,
+//             fontSize: 16,
+//           ),
+//         ),
+//       ),
+//     );
 //   }
 
 //   @override
@@ -134,19 +216,13 @@
 //             // Chat messages list
 //             Expanded(
 //               child: Container(
-//                 color: Colors.grey[100],
+//                 color: Colors.grey.shade100,
 //                 child: ListView.builder(
 //                   controller: _scrollController,
 //                   padding: const EdgeInsets.all(16),
 //                   itemCount: _messages.length,
 //                   itemBuilder: (context, index) {
-//                     return Container(
-//                       margin: const EdgeInsets.only(bottom: 8),
-//                       child: Text(
-//                         _messages[index],
-//                         style: const TextStyle(fontSize: 16),
-//                       ),
-//                     );
+//                     return _buildChatBubble(_messages[index]);
 //                   },
 //                 ),
 //               ),
@@ -176,7 +252,7 @@
 //                     child: Container(
 //                       padding: const EdgeInsets.symmetric(horizontal: 16),
 //                       decoration: BoxDecoration(
-//                         color: Colors.grey[200],
+//                         color: Colors.grey.shade200,
 //                         borderRadius: BorderRadius.circular(24),
 //                       ),
 //                       child: TextField(
@@ -215,6 +291,24 @@ final Uri geminiUrl = Uri.parse(
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$geminiApiKey",
 );
 
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Voice Assistant',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(primarySwatch: Colors.blue),
+      home: const VoiceAssistant(),
+    );
+  }
+}
+
 class VoiceAssistant extends StatefulWidget {
   const VoiceAssistant({Key? key}) : super(key: key);
 
@@ -224,11 +318,18 @@ class VoiceAssistant extends StatefulWidget {
 
 class _VoiceAssistantState extends State<VoiceAssistant> {
   final TextEditingController _messageController = TextEditingController();
-  final List<String> _messages = []; // List to hold messages
+  final List<String> _messages =
+      []; // Holds messages with prefixes "You:" or "Assistant:"
   final ScrollController _scrollController = ScrollController();
 
-  // Function to send the message directly to the Gemini API
+  // Flag to show the loading (typing) effect.
+  bool _isLoading = false;
+
+  // Function to send the message to the Gemini API.
   Future<void> sendMessage(String message) async {
+    setState(() {
+      _isLoading = true;
+    });
     try {
       // Construct the request body as per the Gemini API requirements.
       final Map<String, dynamic> requestBody = {
@@ -251,7 +352,6 @@ class _VoiceAssistantState extends State<VoiceAssistant> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        // Extract reply text from the nested "content" field.
         String reply = "";
         if (data['candidates'] != null &&
             data['candidates'] is List &&
@@ -275,6 +375,9 @@ class _VoiceAssistantState extends State<VoiceAssistant> {
         _messages.add("Error: $e");
       });
     } finally {
+      setState(() {
+        _isLoading = false;
+      });
       _scrollToBottom();
     }
   }
@@ -309,14 +412,99 @@ class _VoiceAssistantState extends State<VoiceAssistant> {
     super.dispose();
   }
 
+  // Build a chat bubble for regular messages.
+  Widget _buildChatBubble(String message) {
+    bool isUserMessage = message.startsWith("You:");
+    String displayText = message.replaceFirst(
+      RegExp(r'^(You:|Assistant:) '),
+      '',
+    );
+
+    return Align(
+      alignment: isUserMessage ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
+        ),
+        decoration: BoxDecoration(
+          color: isUserMessage ? Colors.blue : Colors.grey.shade300,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft:
+                isUserMessage
+                    ? const Radius.circular(16)
+                    : const Radius.circular(0),
+            bottomRight:
+                isUserMessage
+                    ? const Radius.circular(0)
+                    : const Radius.circular(16),
+          ),
+        ),
+        child: Text(
+          displayText,
+          style: TextStyle(
+            color: isUserMessage ? Colors.white : Colors.black87,
+            fontSize: 16,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Build a typing indicator bubble.
+  Widget _buildTypingIndicator() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade300,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+            bottomRight: Radius.circular(16),
+            bottomLeft: Radius.circular(0),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.black54),
+              ),
+            ),
+            SizedBox(width: 8),
+            Text(
+              "Assistant is typing...",
+              style: TextStyle(color: Colors.black87, fontSize: 16),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Determine total number of items. If loading, add one extra for the typing indicator.
+    final int itemCount = _messages.length + (_isLoading ? 1 : 0);
+
     return Scaffold(
-      // App bar and SafeArea
       body: SafeArea(
         child: Column(
           children: [
-            // Custom app bar
+            // Custom app bar.
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               height: 56,
@@ -355,27 +543,26 @@ class _VoiceAssistantState extends State<VoiceAssistant> {
                 ],
               ),
             ),
-            // Chat messages list
+            // Chat messages list.
             Expanded(
               child: Container(
-                color: Colors.grey[100],
+                color: Colors.grey.shade100,
                 child: ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
-                  itemCount: _messages.length,
+                  itemCount: itemCount,
                   itemBuilder: (context, index) {
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        _messages[index],
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                    );
+                    if (index < _messages.length) {
+                      return _buildChatBubble(_messages[index]);
+                    } else {
+                      // This is the typing indicator.
+                      return _buildTypingIndicator();
+                    }
                   },
                 ),
               ),
             ),
-            // Message input area
+            // Message input area.
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
@@ -400,7 +587,7 @@ class _VoiceAssistantState extends State<VoiceAssistant> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       decoration: BoxDecoration(
-                        color: Colors.grey[200],
+                        color: Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: TextField(
